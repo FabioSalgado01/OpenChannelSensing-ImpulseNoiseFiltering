@@ -1,5 +1,5 @@
-# ECE 4271 Final Project
 **Open Channel Sensing and Impulse Noise Filtering in Noisy Communication Systems**
+Contributions by Fabio Salgado, Zhiyuan Zhang, and Jasper Mu-Chun Hsu.
 
 ---
 
