@@ -1,0 +1,74 @@
+function [Channel_Matrix, Ground_Truth] = phase1_generate_env(N, noise_level_dB, occupancy_rate)
+    % Inputs:
+    %   N              - Number of channels
+    %   noise_level_dB - Background WGN level
+    %   occupancy_rate - Representing % of occupied channels
+    
+    % TODO: 
+
+    % Define number of time samples per channel 
+    T = 1024;  % (you can tune this)
+
+    Fs = 1000;   % Sample rate in Hz
+
+    % Initialize empty Channel_Matrix
+    Channel_Matrix = zeros(N, T); 
+
+    % Initialize Ground_Truth array of zeros
+    Ground_Truth = zeros(N, 1);
+
+    % calculate linear noise and add it to all channels
+    noise_power = 10^(noise_level_dB / 10);
+    Channel_Matrix = sqrt(noise_power) * randn(N, T);
+    signal_power = 0.5;   % fixed
+
+    % Randomly select channels based on occupancy_rate
+    numOccupied = round(N * occupancy_rate);  % Calculate number of occupied channels
+    occupiedChannels = randperm(N, numOccupied);  % Randomly select occupied channels
+
+    %   - Change Ground_Truth to 1 for these channels
+    Ground_Truth(occupiedChannels) = 1;  
+
+    %   - Inject simulated semi random transmission signals into these rows  
+    t = (0:T-1);
+
+    for i = 1:length(occupiedChannels)
+
+        ch = occupiedChannels(i);
+
+        % Frequency: true Hz, stays below Nyquist/2 for clean spectrum 
+        f_Hz = randi([5, floor(Fs/4)]);   % 5–250 Hz (Nyquist = 500 Hz)
+
+        % random phase
+        phi = 2*pi*rand;
+
+        % Carrier signal
+        tx_signal = sin(2*pi * (f_Hz/Fs) * t + phi);
+
+        % normalize signal power to control SNR
+        tx_signal = tx_signal / rms(tx_signal);
+        
+        % scale to match SNR (signal is fixed to 1)
+        tx_signal = sqrt(signal_power) * tx_signal;      
+        
+        % simulate bursts in transmission 
+        active_prob = 0.9;
+        burst  = zeros(1, T);
+        t_idx  = 1;
+        while t_idx <= T
+            if rand < active_prob
+                on_len = randi([200, 400]);
+                burst(t_idx : min(t_idx + on_len - 1, T)) = 1;
+                t_idx = t_idx + on_len;
+            else
+                off_len = randi([5, 20]);
+                t_idx   = t_idx + off_len;
+            end
+        end
+ 
+        % populate channel with signal
+        Channel_Matrix(ch, :) = Channel_Matrix(ch, :) + tx_signal .* burst;
+
+    end
+
+end

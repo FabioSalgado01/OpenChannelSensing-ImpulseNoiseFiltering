@@ -1,0 +1,109 @@
+function [Pfa, Pd, AUC, Exec_Time] = phase2_detectors(Channel_Matrix, Ground_Truth, Method_String)
+% Returns:
+% Pfa, Pd, AUC     - ROC performance
+% Exec_Time        - feature extraction runtime ONLY
+
+% Select Method
+tic;
+
+switch Method_String
+
+    case 'MSE'
+        score = MSE_score(Channel_Matrix);
+
+    case 'AdThr'
+        score = AdThr_score(Channel_Matrix);
+
+    case 'PSD'
+        score = PSD_score(Channel_Matrix);
+
+    case 'AC'
+        score = AC_score(Channel_Matrix);
+
+    otherwise
+        error('Unknown Method_String');
+end
+
+Exec_Time = toc;   % detector runtime
+
+% ROC accuracy results
+[Pfa, Pd, AUC] = ROC(score, Ground_Truth);
+
+end
+
+
+% compute score for ROC with MSE method
+function score = MSE_score(X)
+    score = mean(X.^2, 2);
+end
+
+% compute score for ROC with Adaptive Threshold method
+function score = AdThr_score(X)
+    energy = mean(X.^2, 2);
+    score = energy ./ (median(energy) + eps);
+end
+
+% compute score for ROC with Adaptive Threshold method
+function score = PSD_score(X)
+
+N = size(X,1);
+score = zeros(N,1);
+
+for i = 1:N
+    x = X(i,:);
+
+    [Pxx, ~] = pwelch(x, hamming(128), 64, 256, 'onesided');
+
+    score(i) = mean(Pxx);
+end
+
+end
+
+
+function score = AC_score(X)
+
+N = size(X,1);
+score = zeros(N,1);
+
+for i = 1:N
+    x = X(i,:);
+
+    r = xcorr(x, 'coeff');
+
+    mid = ceil(length(r)/2);
+    r(mid) = 0;
+
+    score(i) = max(abs(r));
+end
+
+end
+
+
+function [Pfa, Pd, AUC] = ROC(score, GT)
+
+thresholds = prctile(score, linspace(0,100,200));
+
+Pfa = zeros(length(thresholds),1);
+Pd  = zeros(length(thresholds),1);
+
+for i = 1:length(thresholds)
+
+    thr = thresholds(i);
+    preds = score > thr;
+
+    TP = sum(preds == 1 & GT == 1);
+    FP = sum(preds == 1 & GT == 0);
+    FN = sum(preds == 0 & GT == 1);
+    TN = sum(preds == 0 & GT == 0);
+
+    Pd(i)  = TP / (TP + FN + eps);
+    Pfa(i) = FP / (FP + TN + eps);
+
+end
+
+[Pfa_sorted, idx] = sort(Pfa);
+Pd_sorted = Pd(idx);
+
+AUC = trapz(Pfa_sorted, Pd_sorted);
+
+end
